@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meridian Sky Rally — the best flight game</title>
+<style>
+  :root {
+    --amber: #ffb020;
+    --cyan: #5fd4e8;
+    --glass: rgba(8, 22, 34, 0.62);
+    --line: rgba(255, 255, 255, 0.22);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a1622;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: #eef6fb; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* ---- HUD: glass panels with lit instruments -------------------------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+  .panel { position: absolute; background: var(--glass); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(3px); }
+  .panel .label { font-size: 10px; letter-spacing: 0.18em; color: var(--cyan); opacity: 0.9; }
+  .panel .value { font-size: 26px; font-weight: 700; line-height: 1.05; color: #fff; }
+  .panel .unit { font-size: 11px; color: #bcd6e2; margin-left: 3px; }
+  #hud-left { top: 14px; left: 14px; display: flex; gap: 10px; }
+  #hud-left .panel { position: static; min-width: 108px; }
+  #hud-compass-wrap { top: 14px; left: 50%; transform: translateX(-50%); text-align: center;
+    min-width: 340px; }
+  #hud-heading { font-size: 24px; font-weight: 700; }
+  #hud-compass { display: flex; justify-content: space-between; font-size: 12px; color: #cfe8f2;
+    border-top: 1px solid var(--line); margin-top: 4px; padding-top: 3px; }
+  #hud-compass .tick-now { color: var(--amber); font-weight: 700; }
+  #hud-right { top: 14px; right: 14px; display: flex; gap: 10px; }
+  #hud-right .panel { position: static; min-width: 96px; text-align: right; }
+  #hud-bottom-left { left: 14px; bottom: 14px; min-width: 220px; }
+  #hud-bottom-right { right: 14px; bottom: 14px; padding: 6px; }
+  #hud-attitude { display: block; border-radius: 50%; }
+  .bar { height: 8px; background: rgba(255,255,255,0.16); border-radius: 4px; overflow: hidden; margin: 4px 0 8px; }
+  .bar > div { height: 100%; background: linear-gradient(90deg, #2aff5a, #b6ff5a); border-radius: 4px; }
+  #hud-throttle-bar { background: linear-gradient(90deg, var(--amber), #ffd23e); }
+  #hud-fuel-bar.low { background: linear-gradient(90deg, #ff4d4d, #ff9a3d); }
+  .bar-row { display: flex; justify-content: space-between; font-size: 12px; }
+  .bar-row b { color: #fff; }
+  #hud-phase { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+    font-size: 13px; letter-spacing: 0.28em; color: var(--amber); font-weight: 700; }
+  #hud-message { position: absolute; left: 50%; top: 22%; transform: translateX(-50%);
+    font-size: 30px; font-weight: 800; color: #fff; opacity: 0; transition: opacity 0.25s;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.8); white-space: nowrap; }
+  #hud-message.show { opacity: 1; }
+  #hud-warn { position: absolute; left: 50%; top: 88px; transform: translateX(-50%);
+    color: #ff5a4d; font-weight: 800; font-size: 20px; letter-spacing: 0.2em;
+    visibility: hidden; animation: blink 0.7s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  #hud-cross { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 26px; height: 26px; opacity: 0.85; }
+  #hud-cross::before, #hud-cross::after { content: ""; position: absolute; background: rgba(255,255,255,0.9); }
+  #hud-cross::before { left: 12px; top: 0; width: 2px; height: 26px; }
+  #hud-cross::after { left: 0; top: 12px; width: 26px; height: 2px; }
+
+  /* ---- Full-screen overlays -------------------------------------------- */
+  .screen { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center;
+    justify-content: center; background: radial-gradient(ellipse at center, rgba(6,18,30,0.25), rgba(4,12,20,0.78)); }
+  .screen.hidden { display: none; }
+  .card { text-align: center; max-width: 640px; padding: 34px 44px; background: var(--glass);
+    border: 1px solid var(--line); border-radius: 16px; backdrop-filter: blur(6px); }
+  .card h1 { margin: 0 0 4px; font-size: 46px; letter-spacing: 0.04em; color: #fff; }
+  .card h1 .sky { color: var(--amber); }
+  .card h2 { margin: 0 0 10px; font-size: 30px; color: #fff; }
+  .card p { margin: 8px 0; font-size: 15px; line-height: 1.55; color: #d7e8f2; }
+  .card .keys { font-size: 13px; color: #9fc3d4; }
+  .card .keys b { color: #fff; background: rgba(255,255,255,0.12); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 7px; margin: 0 1px; }
+  .big { font-size: 20px; font-weight: 700; color: var(--amber); margin-top: 14px; }
+  .score-line { display: flex; justify-content: space-between; gap: 40px; font-size: 15px;
+    padding: 5px 0; border-bottom: 1px dashed rgba(255,255,255,0.18); }
+  .score-line b { color: #fff; }
+  .score-total { display: flex; justify-content: space-between; font-size: 24px; font-weight: 800;
+    padding-top: 10px; color: var(--amber); }
+  .sub { font-size: 13px; color: #9fc3d4; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game" aria-label="Meridian Sky Rally: fly the Kestrel MK-II through the ring course and land on the runway"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud">
+  <div id="hud-left">
+    <div class="panel"><div class="label">AIRSPEED</div><div><span class="value" id="hud-speed">000</span><span class="unit">KT</span></div></div>
+    <div class="panel"><div class="label">ALTITUDE</div><div><span class="value" id="hud-alt">00000</span><span class="unit">FT</span></div></div>
+    <div class="panel"><div class="label">VERT SPEED</div><div><span class="value" id="hud-vsi">+0</span><span class="unit">FPM</span></div></div>
+  </div>
+  <div class="panel" id="hud-compass-wrap">
+    <div id="hud-heading">000° N</div>
+    <div id="hud-compass"></div>
+  </div>
+  <div id="hud-right">
+    <div class="panel"><div class="label">SCORE</div><div class="value" id="hud-score">0</div></div>
+    <div class="panel"><div class="label">RINGS</div><div class="value" id="hud-rings">0/8</div></div>
+    <div class="panel"><div class="label">TIME</div><div class="value" id="hud-timer">0:00</div></div>
+  </div>
+  <div class="panel" id="hud-bottom-left">
+    <div class="bar-row"><span>THROTTLE</span><b id="hud-throttle">0%</b></div>
+    <div class="bar"><div id="hud-throttle-bar" style="width:0%"></div></div>
+    <div class="bar-row"><span>FUEL</span><b id="hud-fuel">100%</b></div>
+    <div class="bar"><div id="hud-fuel-bar" style="width:100%"></div></div>
+  </div>
+  <div class="panel" id="hud-bottom-right"><canvas id="hud-attitude" width="150" height="150"></canvas></div>
+  <div id="hud-cross"></div>
+  <div id="hud-message"></div>
+  <div id="hud-warn"></div>
+  <div id="hud-phase">READY</div>
+</div>
+
+<div class="screen" id="screen-title">
+  <div class="card">
+    <h1>MERIDIAN <span class="sky">SKY RALLY</span></h1>
+    <p>Fly the Kestrel MK-II out of Meridian Valley: full throttle down the runway,
+    thread all eight gold rings over the river and the pines, then bring her home
+    for a soft landing on the centreline. Rings, time, fuel and a gentle touchdown
+    all score — fly clean, fly fast.</p>
+    <p class="keys"><b>↑</b><b>↓</b> pitch &nbsp; <b>←</b><b>→</b> bank &amp; turn &nbsp;
+      <b>Shift</b> / <b>Ctrl</b> throttle &nbsp; <b>Space</b> brake &nbsp;
+      <b>drag mouse</b> steer &nbsp; <b>P</b> pause &nbsp; <b>R</b> restart</p>
+    <p class="big">Press ENTER to start your sortie</p>
+    <p class="sub">Watch your speed — below 52 kt the wing stalls. Mind the fuel gauge.</p>
+  </div>
+</div>
+
+<div class="screen hidden" id="screen-results">
+  <div class="card">
+    <h2>🛬 SORTIE COMPLETE</h2>
+    <p id="res-landing-detail" class="sub"></p>
+    <div class="score-line"><span>Rings flown</span><b id="res-rings">0/8</b></div>
+    <div class="score-line"><span>Time bonus</span><b id="res-time">0</b></div>
+    <div class="score-line"><span>Landing bonus</span><b id="res-landing">0</b></div>
+    <div class="score-line"><span>Fuel bonus</span><b id="res-fuel">0</b></div>
+    <div class="score-total"><span>TOTAL SCORE</span><span id="res-score">0</span></div>
+    <p class="big">Press R to fly again</p>
+  </div>
+</div>
+
+<div class="screen hidden" id="screen-crashed">
+  <div class="card">
+    <h2>💥 CRASHED</h2>
+    <p id="crash-reason">The Kestrel is down.</p>
+    <p>Score banked: <b id="crash-score">0</b></p>
+    <p class="big">Press R to try again</p>
+  </div>
+</div>
+
+<div class="screen hidden" id="screen-pause">
+  <div class="card">
+    <h2>PAUSED</h2>
+    <p class="big">Press P to keep flying</p>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
